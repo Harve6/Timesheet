@@ -26,17 +26,13 @@ import androidx.navigation3.ui.NavDisplay
 import com.example.timesheet.data.TimesheetDao
 import com.example.timesheet.data.TimesheetDatabase
 import com.example.timesheet.ui.TimesheetViewModel
-import com.example.timesheet.ui.entry.DailyEntryScreen
 import com.example.timesheet.ui.history.HistoryScreen
-import com.example.timesheet.ui.summary.WeeklyOverviewScreen
+import com.example.timesheet.ui.hours.WeeklyHoursScreen
 import com.example.timesheet.ui.theme.TimesheetTheme
 import kotlinx.serialization.Serializable
 
 @Serializable
 object WeeklyHoursRoute : NavKey
-
-@Serializable
-object DailyEntryRoute : NavKey
 
 @Serializable
 object HistoryRoute : NavKey
@@ -57,7 +53,7 @@ class MainActivity : ComponentActivity() {
 
                 val backStack = rememberNavBackStack(WeeklyHoursRoute)
                 val currentKey = backStack.last()
-                val isTopLevel = currentKey is WeeklyHoursRoute || currentKey is HistoryRoute
+                val isTopLevel = true
 
                 val adaptiveInfo = currentWindowAdaptiveInfo()
                 val navSuiteType = if (isTopLevel) {
@@ -77,8 +73,8 @@ class MainActivity : ComponentActivity() {
                                     backStack.add(WeeklyHoursRoute)
                                 }
                             },
-                            icon = { Icon(Icons.Default.DateRange, contentDescription = "This Week") },
-                            label = { Text("This Week") }
+                            icon = { Icon(Icons.Default.DateRange, contentDescription = "Hours") },
+                            label = { Text("Hours") }
                         )
                         item(
                             selected = currentKey is HistoryRoute,
@@ -99,24 +95,16 @@ class MainActivity : ComponentActivity() {
                         androidx.navigation3.runtime.NavEntry(key) {
                             when (key) {
                                 is WeeklyHoursRoute -> {
-                                    WeeklyOverviewScreen(
-                                        viewModel = viewModel,
-                                        onNavigateToEntry = { backStack.add(DailyEntryRoute) }
-                                    )
-                                }
-                                is DailyEntryRoute -> {
-                                    DailyEntryScreen(
-                                        viewModel = viewModel,
-                                        onNavigateBack = { 
-                                            if (backStack.isNotEmpty()) {
-                                                backStack.removeAt(backStack.size - 1)
-                                            }
-                                        }
-                                    )
+                                    WeeklyHoursScreen(viewModel = viewModel)
                                 }
                                 is HistoryRoute -> {
                                     HistoryScreen(
-                                        viewModel = viewModel
+                                        viewModel = viewModel,
+                                        onOpenWeek = { start ->
+                                            viewModel.goToWeek(start)
+                                            backStack.clear()
+                                            backStack.add(WeeklyHoursRoute)
+                                        }
                                     )
                                 }
                             }

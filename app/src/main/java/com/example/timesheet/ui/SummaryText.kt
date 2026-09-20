@@ -17,31 +17,28 @@ fun formatHours(hours: Double): String =
 
 /**
  * Plain-text week summary meant to be pasted into a text message.
- * [weekStart] is the Monday (start of day) of the week being summarized.
+ * Only days that have something in them are listed.
  */
 fun buildWeekText(weekStart: Long, entries: List<SiteTimeEntry>): String {
     val rangeFmt = SimpleDateFormat("MMM d", Locale.getDefault())
     val dayFmt = SimpleDateFormat("EEE M/d", Locale.getDefault())
-    val end = Calendar.getInstance().apply {
-        timeInMillis = weekStart
-        add(Calendar.DAY_OF_YEAR, 6)
-    }.timeInMillis
 
     return buildString {
-        appendLine("Hours for ${rangeFmt.format(Date(weekStart))} - ${rangeFmt.format(Date(end))}")
+        appendLine("Hours ${rangeFmt.format(Date(weekStart))} - ${rangeFmt.format(Date(addDays(weekStart, 6)))}")
         entries.sortedBy { it.date }.forEach { e ->
             append(dayFmt.format(Date(e.date)))
-            append(": ${formatHours(e.hoursWorked)}h")
-            if (e.siteName.isNotBlank()) append(" - ${e.siteName}")
-            if (e.jobNumber.isNotBlank()) append(" (Job ${e.jobNumber})")
-            if (e.workSummary.isNotBlank()) append(" - ${e.workSummary}")
-            if (e.parkingAmount > 0) append(" - Parking $${String.format(Locale.US, "%.2f", e.parkingAmount)}")
-            if (e.travelReimbursed) append(" - Travel")
+            if (e.hoursWorked > 0) append("  ${formatHours(e.hoursWorked)}")
+            if (e.siteName.isNotBlank()) append("  ${e.siteName}")
+            if (e.travelReimbursed) append(" +Travel")
+            if (e.parkingAmount > 0) append(" +Park $${formatMoney(e.parkingAmount)}")
             appendLine()
         }
-        append("Total: ${formatHours(entries.sumOf { it.hoursWorked })}h")
+        append("Total: ${formatHours(entries.sumOf { it.hoursWorked })}")
     }
 }
+
+fun formatMoney(amount: Double): String =
+    if (amount % 1.0 == 0.0) amount.toLong().toString() else String.format(Locale.US, "%.2f", amount)
 
 fun copyToClipboard(context: Context, text: String) {
     val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
@@ -65,20 +62,3 @@ fun localNoon(millis: Long): Long = Calendar.getInstance().apply {
     set(Calendar.SECOND, 0)
     set(Calendar.MILLISECOND, 0)
 }.timeInMillis
-
-/** Material date picker works in UTC; convert its result to a local-noon timestamp. */
-fun pickerUtcToLocalNoon(utcMillis: Long): Long {
-    val utc = Calendar.getInstance(java.util.TimeZone.getTimeZone("UTC")).apply { timeInMillis = utcMillis }
-    return Calendar.getInstance().apply {
-        clear()
-        set(utc.get(Calendar.YEAR), utc.get(Calendar.MONTH), utc.get(Calendar.DAY_OF_MONTH), 12, 0, 0)
-    }.timeInMillis
-}
-
-fun localToPickerUtc(localMillis: Long): Long {
-    val local = Calendar.getInstance().apply { timeInMillis = localMillis }
-    return Calendar.getInstance(java.util.TimeZone.getTimeZone("UTC")).apply {
-        clear()
-        set(local.get(Calendar.YEAR), local.get(Calendar.MONTH), local.get(Calendar.DAY_OF_MONTH), 0, 0, 0)
-    }.timeInMillis
-}

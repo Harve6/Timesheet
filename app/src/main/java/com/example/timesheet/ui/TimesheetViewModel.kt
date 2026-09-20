@@ -11,7 +11,6 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -19,6 +18,9 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
+
+/** Pay weeks run Sunday to Saturday. */
+const val WEEK_START_DAY = Calendar.SUNDAY
 
 data class WeekSummary(
     val weekRangeText: String,
@@ -32,19 +34,43 @@ data class PeriodTotal(
     val totalHours: Double
 )
 
-/** Start of the Monday-based week containing [millis]. */
+/** What the grid shows for one day. */
+data class DayData(
+    val hours: Double,
+    val site: String,
+    val travel: Boolean,
+    val parking: Double
+)
+
+/** Start of the week containing [millis] (midnight on [WEEK_START_DAY]). */
 fun weekStartOf(millis: Long): Long {
     val cal = Calendar.getInstance().apply {
         timeInMillis = millis
-        firstDayOfWeek = Calendar.MONDAY
         set(Calendar.HOUR_OF_DAY, 0)
         set(Calendar.MINUTE, 0)
         set(Calendar.SECOND, 0)
         set(Calendar.MILLISECOND, 0)
     }
-    val daysSinceMonday = (cal.get(Calendar.DAY_OF_WEEK) + 5) % 7
-    cal.add(Calendar.DAY_OF_YEAR, -daysSinceMonday)
+    val daysSinceStart = (cal.get(Calendar.DAY_OF_WEEK) - WEEK_START_DAY + 7) % 7
+    cal.add(Calendar.DAY_OF_YEAR, -daysSinceStart)
     return cal.timeInMillis
+}
+
+fun addDays(millis: Long, days: Int): Long =
+    Calendar.getInstance().apply {
+        timeInMillis = millis
+        add(Calendar.DAY_OF_YEAR, days)
+    }.timeInMillis
+
+private fun dayRange(millis: Long): Pair<Long, Long> {
+    val start = Calendar.getInstance().apply {
+        timeInMillis = millis
+        set(Calendar.HOUR_OF_DAY, 0)
+        set(Calendar.MINUTE, 0)
+        set(Calendar.SECOND, 0)
+        set(Calendar.MILLISECOND, 0)
+    }.timeInMillis
+    return start to addDays(start, 1) - 1
 }
 
 class TimesheetViewModel(
@@ -52,49 +78,53 @@ class TimesheetViewModel(
     @Suppress("UNUSED_PARAMETER") private val savedStateHandle: SavedStateHandle
 ) : ViewModel() {
 
+    /** Single writer thread so saves land in the order they were made. */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    private val writer = Dispatchers.IO.limitedParallelism(1)
+
     val allEntries: StateFlow<List<SiteTimeEntry>> = dao.getAllEntries()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val savedLocations: StateFlow<List<SavedLocation>> = dao.getAllSavedLocations()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    private val _weekRange = MutableStateFlow(getCurrentWeekRange())
-    
-    @OptIn(ExperimentalCoroutinesApi::class)
-    val currentWeekEntries: StateFlow<List<SiteTimeEntry>> = _weekRange.flatMapLatest { range ->
-        dao.getEntriesForDateRange(range.first, range.second)
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    private val _weekStart = MutableStateFlow(weekStartOf(System.currentTimeMillis()))
+    val weekStart: StateFlow<Long> = _weekStart
+
+    fun shiftWeek(delta: Int) {
+        _weekStart.value = addDays(_weekStart.value, 7 * delta)
+    }
+
+    fun goToWeek(start: Long) {
+        _weekStart.value = weekStartOf(start)
+    }
+
+    fun goToThisWeek() = goToWeek(System.currentTimeMillis())
+
+    val totalHoursThisWeek: StateFlow<Double> = allEntries.map { entries ->
+        val start = weekStartOf(System.currentTimeMillis())
+        entries.filter { weekStartOf(it.date) == start }.sumOf { it.hoursWorked }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
 
     val totalHoursThisMonth: StateFlow<Double> = allEntries.map { entries ->
         val now = Calendar.getInstance()
-        val currentMonth = now.get(Calendar.MONTH)
-        val currentYear = now.get(Calendar.YEAR)
-        
         entries.filter { entry ->
-            val entryCal = Calendar.getInstance().apply { timeInMillis = entry.date }
-            entryCal.get(Calendar.MONTH) == currentMonth && entryCal.get(Calendar.YEAR) == currentYear
+            val c = Calendar.getInstance().apply { timeInMillis = entry.date }
+            c.get(Calendar.MONTH) == now.get(Calendar.MONTH) && c.get(Calendar.YEAR) == now.get(Calendar.YEAR)
         }.sumOf { it.hoursWorked }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
 
     val totalHoursThisYear: StateFlow<Double> = allEntries.map { entries ->
-        val now = Calendar.getInstance()
-        val currentYear = now.get(Calendar.YEAR)
-        
-        entries.filter { entry ->
-            val entryCal = Calendar.getInstance().apply { timeInMillis = entry.date }
-            entryCal.get(Calendar.YEAR) == currentYear
-        }.sumOf { it.hoursWorked }
+        val year = Calendar.getInstance().get(Calendar.YEAR)
+        entries.filter { Calendar.getInstance().apply { timeInMillis = it.date }.get(Calendar.YEAR) == year }
+            .sumOf { it.hoursWorked }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
 
     val pastWeeksSummary: StateFlow<List<WeekSummary>> = allEntries.map { entries ->
         val sdf = SimpleDateFormat("MMM d", Locale.getDefault())
         entries.groupBy { weekStartOf(it.date) }.map { (start, weekEntries) ->
-            val end = Calendar.getInstance().apply {
-                timeInMillis = start
-                add(Calendar.DAY_OF_YEAR, 6)
-            }.timeInMillis
             WeekSummary(
-                weekRangeText = "${sdf.format(Date(start))} - ${sdf.format(Date(end))}",
+                weekRangeText = "${sdf.format(Date(start))} - ${sdf.format(Date(addDays(start, 6)))}",
                 totalHours = weekEntries.sumOf { it.hoursWorked },
                 startDate = start,
                 entries = weekEntries
@@ -117,63 +147,56 @@ class TimesheetViewModel(
             .map { (year, list) -> PeriodTotal(year.toString(), list.sumOf { it.hoursWorked }) }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    /** Entry being edited on the entry screen, or null when adding a new one. */
-    private val _editingEntry = MutableStateFlow<SiteTimeEntry?>(null)
-    val editingEntry: StateFlow<SiteTimeEntry?> = _editingEntry
-
-    fun startEditing(entry: SiteTimeEntry?) {
-        _editingEntry.value = entry
+    /**
+     * Loads the seven days of the week starting at [weekStart], keyed by the day's
+     * noon timestamp. If a day somehow holds several entries they are merged.
+     */
+    suspend fun loadWeek(weekStart: Long): Map<Long, DayData> {
+        val entries = dao.getEntriesOnce(weekStart, addDays(weekStart, 7) - 1)
+        return entries.groupBy { localNoon(it.date) }.mapValues { (_, list) ->
+            DayData(
+                hours = list.sumOf { it.hoursWorked },
+                site = list.map { it.siteName }.filter { it.isNotBlank() }.distinct().joinToString(" / "),
+                travel = list.any { it.travelReimbursed },
+                parking = list.sumOf { it.parkingAmount }
+            )
+        }
     }
 
-    val currentWeekStart: Long get() = _weekRange.value.first
-
-    fun addOrUpdateEntry(entry: SiteTimeEntry) {
-        viewModelScope.launch(Dispatchers.IO) {
+    /** Saves the day as a single entry, or removes it when everything is blank. */
+    fun saveDay(day: Long, data: DayData) {
+        viewModelScope.launch(writer) {
             try {
-                if (entry.id == 0L) {
-                    dao.insertEntry(entry)
-                } else {
-                    dao.updateEntry(entry)
-                }
-                
-                // Automatically save location to SavedLocation
-                if (entry.siteName.isNotBlank()) {
-                    dao.insertSavedLocation(
-                        SavedLocation(
-                            siteName = entry.siteName,
-                            siteAddress = entry.siteAddress
-                        )
+                val (start, end) = dayRange(day)
+                val existing = dao.getEntriesOnce(start, end).firstOrNull()
+                dao.deleteInRange(start, end)
+                val blank = data.hours <= 0 && data.site.isBlank() && !data.travel && data.parking <= 0
+                if (blank) return@launch
+
+                dao.insertEntry(
+                    SiteTimeEntry(
+                        date = localNoon(day),
+                        siteName = data.site.trim(),
+                        siteAddress = existing?.siteAddress ?: "",
+                        jobNumber = existing?.jobNumber ?: "",
+                        hoursWorked = data.hours,
+                        workSummary = existing?.workSummary ?: "",
+                        travelReimbursed = data.travel,
+                        parkingAmount = data.parking
                     )
+                )
+                if (data.site.isNotBlank()) {
+                    dao.insertSavedLocation(SavedLocation(siteName = data.site.trim(), siteAddress = existing?.siteAddress ?: ""))
                 }
             } catch (e: Exception) {
-                // Log error
                 e.printStackTrace()
             }
         }
     }
 
-    fun deleteEntry(entry: SiteTimeEntry) {
-        viewModelScope.launch {
-            dao.deleteEntry(entry)
+    fun clearWeek(weekStart: Long) {
+        viewModelScope.launch(writer) {
+            dao.deleteInRange(weekStart, addDays(weekStart, 7) - 1)
         }
-    }
-
-    /**
-     * Updates the current week range for filtering entries.
-     */
-    fun getEntriesForWeek(startDate: Long, endDate: Long) {
-        _weekRange.value = Pair(startDate, endDate)
-    }
-
-    private fun getCurrentWeekRange(): Pair<Long, Long> {
-        val start = weekStartOf(System.currentTimeMillis())
-        val end = Calendar.getInstance().apply {
-            timeInMillis = start
-            add(Calendar.DAY_OF_YEAR, 6)
-            set(Calendar.HOUR_OF_DAY, 23)
-            set(Calendar.MINUTE, 59)
-            set(Calendar.SECOND, 59)
-        }.timeInMillis
-        return Pair(start, end)
     }
 }

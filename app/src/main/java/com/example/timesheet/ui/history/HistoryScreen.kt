@@ -28,9 +28,10 @@ private val tabs = listOf("Weeks", "Months", "Years")
 @Composable
 fun HistoryScreen(
     viewModel: TimesheetViewModel,
+    onOpenWeek: (Long) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val weekEntries by viewModel.currentWeekEntries.collectAsStateWithLifecycle()
+    val weekHours by viewModel.totalHoursThisWeek.collectAsStateWithLifecycle()
     val monthHours by viewModel.totalHoursThisMonth.collectAsStateWithLifecycle()
     val ytdHours by viewModel.totalHoursThisYear.collectAsStateWithLifecycle()
     val pastWeeks by viewModel.pastWeeksSummary.collectAsStateWithLifecycle()
@@ -63,7 +64,7 @@ fun HistoryScreen(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        StatsCard("This Week", formatHours(weekEntries.sumOf { it.hoursWorked }), Modifier.weight(1f))
+                        StatsCard("This Week", formatHours(weekHours), Modifier.weight(1f))
                         StatsCard("This Month", formatHours(monthHours), Modifier.weight(1f))
                         StatsCard("This Year", formatHours(ytdHours), Modifier.weight(1f))
                     }
@@ -87,6 +88,7 @@ fun HistoryScreen(
                         items(pastWeeks, key = { it.startDate }) { week ->
                             WeekSummaryItem(
                                 week = week,
+                                onOpen = { onOpenWeek(week.startDate) },
                                 onCopy = { copyToClipboard(context, buildWeekText(week.startDate, week.entries)) }
                             )
                         }
@@ -153,10 +155,12 @@ fun StatsCard(
 @Composable
 fun WeekSummaryItem(
     week: WeekSummary,
+    onOpen: () -> Unit,
     onCopy: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Card(
+        onClick = onOpen,
         modifier = modifier.fillMaxWidth(),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {

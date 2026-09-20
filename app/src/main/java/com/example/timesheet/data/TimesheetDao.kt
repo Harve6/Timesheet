@@ -25,6 +25,12 @@ interface TimesheetDao {
     @Query("SELECT * FROM site_time_entries WHERE date >= :startDate AND date <= :endDate ORDER BY date ASC")
     fun getEntriesForDateRange(startDate: Long, endDate: Long): Flow<List<SiteTimeEntry>>
 
+    @Query("SELECT * FROM site_time_entries WHERE date >= :startDate AND date <= :endDate ORDER BY date ASC, id ASC")
+    suspend fun getEntriesOnce(startDate: Long, endDate: Long): List<SiteTimeEntry>
+
+    @Query("DELETE FROM site_time_entries WHERE date >= :startDate AND date <= :endDate")
+    suspend fun deleteInRange(startDate: Long, endDate: Long)
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertSavedLocation(location: SavedLocation)
 
