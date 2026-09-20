@@ -312,7 +312,8 @@ private fun GridField(
     placeholder: (@Composable () -> Unit)?,
     singleLine: Boolean,
     maxLines: Int,
-    horizontalPadding: Dp
+    horizontalPadding: Dp,
+    verticalPadding: Dp = 9.dp
 ) {
     val interaction = remember { MutableInteractionSource() }
     val colors = fieldColors()
@@ -339,8 +340,8 @@ private fun GridField(
                 contentPadding = OutlinedTextFieldDefaults.contentPadding(
                     start = horizontalPadding,
                     end = horizontalPadding,
-                    top = 9.dp,
-                    bottom = 9.dp
+                    top = verticalPadding,
+                    bottom = verticalPadding
                 ),
                 container = {
                     OutlinedTextFieldDefaults.Container(
@@ -422,28 +423,46 @@ private fun DayRow(
             } else null,
             singleLine = true,
             maxLines = 1,
-            horizontalPadding = 4.dp
+            horizontalPadding = 4.dp,
+            verticalPadding = if (stacked) 5.dp else 9.dp
         )
     }
 
     val extras: @Composable () -> Unit = {
         if (day.hasExtras()) {
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            val tags: @Composable () -> Unit = {
                 if (day.travel) Text("+Travel", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.tertiary)
                 if (day.parking.isNotEmpty()) Text("+Park $${day.parking}", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.tertiary)
             }
+            // Beside the hours box at Biggest (stacked to fit); under the site otherwise.
+            if (stacked) Column { tags() } else Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) { tags() }
         }
     }
 
     if (stacked) {
-        Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        // Biggest text: the day label sits on the left; hours (with any travel/parking tags beside
+        // it) and the site stack on the right. Two rows per day instead of three.
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
                 dayChip()
-                hoursField(Modifier.weight(1f))
+                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        hoursField(Modifier.width(132.dp))
+                        extras()
+                    }
+                    SiteField(
+                        value = day.site,
+                        onValueChange = { day.site = it },
+                        suggestions = suggestions,
+                        verticalPadding = 5.dp
+                    )
+                }
             }
-            SiteField(value = day.site, onValueChange = { day.site = it }, suggestions = suggestions)
-            extras()
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant, modifier = Modifier.padding(top = 6.dp))
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant, modifier = Modifier.padding(top = 4.dp))
         }
     } else {
         Row(
@@ -462,7 +481,12 @@ private fun DayRow(
 }
 
 @Composable
-private fun SiteField(value: String, onValueChange: (String) -> Unit, suggestions: List<String>) {
+private fun SiteField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    suggestions: List<String>,
+    verticalPadding: Dp = 9.dp
+) {
     var expanded by remember { mutableStateOf(false) }
     val matches = remember(value, suggestions) {
         if (value.isBlank()) emptyList()
@@ -482,7 +506,8 @@ private fun SiteField(value: String, onValueChange: (String) -> Unit, suggestion
             // Long names wrap onto a second line rather than scrolling the start out of view.
             singleLine = false,
             maxLines = 2,
-            horizontalPadding = 10.dp
+            horizontalPadding = 10.dp,
+            verticalPadding = verticalPadding
         )
         DropdownMenu(
             expanded = expanded && matches.isNotEmpty(),
