@@ -1,8 +1,8 @@
 # TradeHours Privacy Policy
 
-*Last updated: [DATE]*
+*Last updated: September 20, 2026*
 
-TradeHours ("the app") is a personal hours-tracking app.
+TradeHours ("the app") is a personal hours-tracking app published by Harve6.
 
 **What we collect:** nothing. The app does not collect, transmit, sell or share any personal information.
 
@@ -20,4 +20,4 @@ TradeHours ("the app") is a personal hours-tracking app.
 
 **Changes:** if this policy changes it will be updated on this page.
 
-**Contact:** [YOUR CONTACT EMAIL]
+**Contact:** harve6@gmail.com
