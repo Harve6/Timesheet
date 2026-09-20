@@ -11,34 +11,41 @@ import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 
-/** 8.0 -> "8", 8.5 -> "8.5" */
-fun formatHours(hours: Double): String =
-    if (hours % 1.0 == 0.0) hours.toLong().toString() else String.format(Locale.US, "%.1f", hours)
+/** 8.0 -> "8", 8.5 -> "8.5", 8.25 -> "8.25" */
+fun formatHours(hours: Double): String = trimNumber(hours)
+
+fun formatMoney(amount: Double): String = trimNumber(amount)
+
+private fun trimNumber(value: Double): String =
+    java.math.BigDecimal(value).setScale(2, java.math.RoundingMode.HALF_UP).stripTrailingZeros().toPlainString()
 
 /**
- * Plain-text week summary meant to be pasted into a text message.
- * Only days that have something in them are listed.
+ * Plain-text week for pasting into a text message. One line per day, all seven
+ * days listed, e.g. "Tue  9.5  Main St +Travel +Park $10".
  */
 fun buildWeekText(weekStart: Long, entries: List<SiteTimeEntry>): String {
-    val rangeFmt = SimpleDateFormat("MMM d", Locale.getDefault())
-    val dayFmt = SimpleDateFormat("EEE M/d", Locale.getDefault())
+    val dayFmt = SimpleDateFormat("EEE", Locale.getDefault())
+    val byDay = entries.groupBy { localNoon(it.date) }
 
     return buildString {
-        appendLine("Hours ${rangeFmt.format(Date(weekStart))} - ${rangeFmt.format(Date(addDays(weekStart, 6)))}")
-        entries.sortedBy { it.date }.forEach { e ->
-            append(dayFmt.format(Date(e.date)))
-            if (e.hoursWorked > 0) append("  ${formatHours(e.hoursWorked)}")
-            if (e.siteName.isNotBlank()) append("  ${e.siteName}")
-            if (e.travelReimbursed) append(" +Travel")
-            if (e.parkingAmount > 0) append(" +Park $${formatMoney(e.parkingAmount)}")
+        for (i in 0..6) {
+            val date = localNoon(addDays(weekStart, i))
+            val day = byDay[date].orEmpty()
+            val hours = day.sumOf { it.hoursWorked }
+            val site = day.map { it.siteName }.filter { it.isNotBlank() }.distinct().joinToString(" / ")
+            val parking = day.sumOf { it.parkingAmount }
+
+            append(dayFmt.format(Date(date)))
+            append("  ")
+            if (hours > 0) append(formatHours(hours))
+            if (hours > 0 && site.isNotEmpty()) append("  ")
+            append(site)
+            if (day.any { it.travelReimbursed }) append(" +Travel")
+            if (parking > 0) append(" +Park $${formatMoney(parking)}")
             appendLine()
         }
-        append("Total: ${formatHours(entries.sumOf { it.hoursWorked })}")
-    }
+    }.trimEnd()
 }
-
-fun formatMoney(amount: Double): String =
-    if (amount % 1.0 == 0.0) amount.toLong().toString() else String.format(Locale.US, "%.2f", amount)
 
 fun copyToClipboard(context: Context, text: String) {
     val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
