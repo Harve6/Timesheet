@@ -197,7 +197,7 @@ fun WeeklyHoursScreen(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                        .padding(horizontal = 16.dp, vertical = 4.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
@@ -215,7 +215,7 @@ fun WeeklyHoursScreen(
                             .fillMaxSize()
                             .verticalScroll(rememberScrollState())
                             .padding(horizontal = 8.dp, vertical = 8.dp),
-                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                        verticalArrangement = Arrangement.spacedBy(2.dp)
                     ) {
                         if (!stacked) {
                             Row(
@@ -339,8 +339,8 @@ private fun GridField(
                 contentPadding = OutlinedTextFieldDefaults.contentPadding(
                     start = horizontalPadding,
                     end = horizontalPadding,
-                    top = 14.dp,
-                    bottom = 14.dp
+                    top = 9.dp,
+                    bottom = 9.dp
                 ),
                 container = {
                     OutlinedTextFieldDefaults.Container(
@@ -392,11 +392,19 @@ private fun DayRow(
             modifier = if (stacked) Modifier.widthIn(min = DAY_WIDTH) else Modifier.width(DAY_WIDTH)
         ) {
             Column(
-                modifier = Modifier.padding(vertical = 8.dp, horizontal = 4.dp),
+                modifier = Modifier.padding(vertical = 4.dp, horizontal = 4.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Text(dayFmt.format(Date(day.date)), fontWeight = FontWeight.Black, style = MaterialTheme.typography.titleMedium)
-                Text(dateFmt.format(Date(day.date)), style = MaterialTheme.typography.bodySmall)
+                // Tight line heights keep the row as short as the text boxes beside it.
+                Text(
+                    dayFmt.format(Date(day.date)),
+                    fontWeight = FontWeight.Black,
+                    style = MaterialTheme.typography.titleMedium.copy(lineHeight = 24.sp)
+                )
+                Text(
+                    dateFmt.format(Date(day.date)),
+                    style = MaterialTheme.typography.bodySmall.copy(lineHeight = 18.sp)
+                )
             }
         }
     }

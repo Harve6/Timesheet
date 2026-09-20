@@ -39,4 +39,13 @@ One-time purchase. No subscriptions, no in-app purchases, no ads. Ever.
 ## Graphics in this folder
 - `icon-512.png` - app icon (512 x 512)
 - `feature-graphic-1024x500.png` - feature graphic
-- Phone screenshots: take these from the emulator (at least 2, ideally 4-6): the week grid with hours filled in, the pasted text in a message, the History tab, the day options dialog.
+- `screenshots/` - phone screenshots, 1080 x 2160 (exactly 2:1, the maximum Play allows). Upload them in this order:
+  1. `01-week-hours.png` - the whole week on one screen, one tap to copy
+  2. `02-paste-in-text.png` - paste it straight into a text message
+  3. `03-history-weeks.png` - past weeks, each with its own copy button
+  4. `04-history-months.png` - month totals (and years)
+  5. `05-settings.png` - text size, light/dark, pay week
+  6. `06-dark-mode.png` - dark mode
+  7. `07-biggest-text.png` - biggest text size, easy to read
+
+  They use sample data only (made-up sites and a fake 555 number). Play allows up to 8 phone screenshots; you must upload at least 2.
