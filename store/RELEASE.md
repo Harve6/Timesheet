@@ -38,7 +38,7 @@ Test the release build first: in Android Studio pick the **release** build varia
 - Icon: `icon-512.png`; feature graphic: `feature-graphic-1024x500.png`
 - Screenshots: take from the emulator
 - **Privacy policy URL:** required. Fill in the blanks in `privacy-policy.md` and host it somewhere public (for example GitHub Pages on the repo), then paste the link.
-- **Data safety form:** no data collected, no data shared.
+- **Data safety form:** no data collected, no data shared. (The app declares the notifications and run-at-startup permissions for reminders; neither collects data.)
 - **Content rating** questionnaire: no violence, etc. Everyone.
 - **Target audience:** 18+ (not for children).
 - **Ads:** no.

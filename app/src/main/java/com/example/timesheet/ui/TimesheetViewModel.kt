@@ -10,6 +10,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -18,9 +19,6 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
-
-/** Pay weeks run Sunday to Saturday. */
-const val WEEK_START_DAY = Calendar.SUNDAY
 
 data class WeekSummary(
     val weekRangeText: String,
@@ -42,8 +40,8 @@ data class DayData(
     val parking: Double
 )
 
-/** Start of the week containing [millis] (midnight on [WEEK_START_DAY]). */
-fun weekStartOf(millis: Long): Long {
+/** Start of the week containing [millis]: midnight on [startDay] (the user's week-start setting). */
+fun weekStartOf(millis: Long, startDay: Int = WeekSettings.startDay): Long {
     val cal = Calendar.getInstance().apply {
         timeInMillis = millis
         set(Calendar.HOUR_OF_DAY, 0)
@@ -51,7 +49,7 @@ fun weekStartOf(millis: Long): Long {
         set(Calendar.SECOND, 0)
         set(Calendar.MILLISECOND, 0)
     }
-    val daysSinceStart = (cal.get(Calendar.DAY_OF_WEEK) - WEEK_START_DAY + 7) % 7
+    val daysSinceStart = (cal.get(Calendar.DAY_OF_WEEK) - startDay + 7) % 7
     cal.add(Calendar.DAY_OF_YEAR, -daysSinceStart)
     return cal.timeInMillis
 }
@@ -101,9 +99,18 @@ class TimesheetViewModel(
 
     fun goToThisWeek() = goToWeek(System.currentTimeMillis())
 
-    val totalHoursThisWeek: StateFlow<Double> = allEntries.map { entries ->
-        val start = weekStartOf(System.currentTimeMillis())
-        entries.filter { weekStartOf(it.date) == start }.sumOf { it.hoursWorked }
+    /** Bumped when the week-start setting changes so week-based totals recompute. */
+    private val startDay = MutableStateFlow(WeekSettings.startDay)
+
+    /** Call after saving a new week-start day: regroup the weeks and jump to the current one. */
+    fun onWeekStartChanged() {
+        startDay.value = WeekSettings.startDay
+        goToThisWeek()
+    }
+
+    val totalHoursThisWeek: StateFlow<Double> = combine(allEntries, startDay) { entries, day ->
+        val start = weekStartOf(System.currentTimeMillis(), day)
+        entries.filter { weekStartOf(it.date, day) == start }.sumOf { it.hoursWorked }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
 
     val totalHoursThisMonth: StateFlow<Double> = allEntries.map { entries ->
@@ -120,9 +127,9 @@ class TimesheetViewModel(
             .sumOf { it.hoursWorked }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
 
-    val pastWeeksSummary: StateFlow<List<WeekSummary>> = allEntries.map { entries ->
+    val pastWeeksSummary: StateFlow<List<WeekSummary>> = combine(allEntries, startDay) { entries, day ->
         val sdf = SimpleDateFormat("MMM d", Locale.getDefault())
-        entries.groupBy { weekStartOf(it.date) }.map { (start, weekEntries) ->
+        entries.groupBy { weekStartOf(it.date, day) }.map { (start, weekEntries) ->
             WeekSummary(
                 weekRangeText = "${sdf.format(Date(start))} - ${sdf.format(Date(addDays(start, 6)))}",
                 totalHours = weekEntries.sumOf { it.hoursWorked },

@@ -36,13 +36,29 @@ class SummaryTextTest {
         assertEquals("0", formatHours(0.0))
     }
 
+    private fun midnight(y: Int, m: Int, d: Int): Long =
+        Calendar.getInstance().apply { clear(); set(y, m - 1, d, 0, 0, 0) }.timeInMillis
+
     @Test
-    fun weekStart_isSunday() {
+    fun weekStart_sunday() {
         // Wed Sep 17 2025 -> Sun Sep 14 2025
-        assertEquals(date(2025, 9, 14) - 12 * 3600_000L, weekStartOf(date(2025, 9, 17)))
+        assertEquals(midnight(2025, 9, 14), weekStartOf(date(2025, 9, 17), Calendar.SUNDAY))
         // A Sunday is its own week start; a Saturday belongs to the week before it.
-        assertEquals(date(2025, 9, 14) - 12 * 3600_000L, weekStartOf(date(2025, 9, 14)))
-        assertEquals(date(2025, 9, 14) - 12 * 3600_000L, weekStartOf(date(2025, 9, 20)))
+        assertEquals(midnight(2025, 9, 14), weekStartOf(date(2025, 9, 14), Calendar.SUNDAY))
+        assertEquals(midnight(2025, 9, 14), weekStartOf(date(2025, 9, 20), Calendar.SUNDAY))
+    }
+
+    @Test
+    fun weekStart_monday() {
+        assertEquals(midnight(2025, 9, 15), weekStartOf(date(2025, 9, 17), Calendar.MONDAY))
+        // Sunday still belongs to the week that began the Monday before.
+        assertEquals(midnight(2025, 9, 8), weekStartOf(date(2025, 9, 14), Calendar.MONDAY))
+    }
+
+    @Test
+    fun weekStart_saturday() {
+        assertEquals(midnight(2025, 9, 13), weekStartOf(date(2025, 9, 17), Calendar.SATURDAY))
+        assertEquals(midnight(2025, 9, 20), weekStartOf(date(2025, 9, 20), Calendar.SATURDAY))
     }
 
     @Test

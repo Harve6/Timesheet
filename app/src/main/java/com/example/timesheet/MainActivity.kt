@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.material3.adaptive.currentWindowAdaptiveInfo
@@ -23,6 +24,9 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.ui.NavDisplay
+import com.example.timesheet.reminders.ReminderScheduler
+import com.example.timesheet.ui.WeekSettings
+import com.example.timesheet.ui.settings.SettingsScreen
 import com.example.timesheet.data.TimesheetDao
 import com.example.timesheet.data.TimesheetDatabase
 import com.example.timesheet.ui.TimesheetViewModel
@@ -37,10 +41,18 @@ object WeeklyHoursRoute : NavKey
 @Serializable
 object HistoryRoute : NavKey
 
+@Serializable
+object SettingsRoute : NavKey
+
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+
+        WeekSettings.load(this) // must happen before the ViewModel works out "this week"
+
+        // Make sure any saved reminders have a pending alarm (cheap, and safe to repeat).
+        ReminderScheduler.scheduleAll(this)
 
         val database = TimesheetDatabase.getDatabase(this)
         val dao = database.timesheetDao()
@@ -87,6 +99,17 @@ class MainActivity : ComponentActivity() {
                             icon = { Icon(Icons.Default.History, contentDescription = "History") },
                             label = { Text("History") }
                         )
+                        item(
+                            selected = currentKey is SettingsRoute,
+                            onClick = {
+                                if (currentKey !is SettingsRoute) {
+                                    backStack.clear()
+                                    backStack.add(SettingsRoute)
+                                }
+                            },
+                            icon = { Icon(Icons.Default.Settings, contentDescription = "Settings") },
+                            label = { Text("Settings") }
+                        )
                     }
                 ) {
                     NavDisplay(
@@ -106,6 +129,9 @@ class MainActivity : ComponentActivity() {
                                             backStack.add(WeeklyHoursRoute)
                                         }
                                     )
+                                }
+                                is SettingsRoute -> {
+                                    SettingsScreen(viewModel = viewModel)
                                 }
                             }
                         }
