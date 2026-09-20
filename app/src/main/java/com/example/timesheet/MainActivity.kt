@@ -3,6 +3,7 @@ package com.example.timesheet
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.SystemBarStyle
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -32,7 +33,9 @@ import com.example.timesheet.data.TimesheetDatabase
 import com.example.timesheet.ui.TimesheetViewModel
 import com.example.timesheet.ui.history.HistoryScreen
 import com.example.timesheet.ui.hours.WeeklyHoursScreen
+import com.example.timesheet.ui.theme.AppearanceSettings
 import com.example.timesheet.ui.theme.TimesheetTheme
+import com.example.timesheet.ui.theme.isAppDark
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -47,8 +50,9 @@ object SettingsRoute : NavKey
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
+        enableEdgeToEdge(statusBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT))
 
+        AppearanceSettings.load(this)
         WeekSettings.load(this) // must happen before the ViewModel works out "this week"
 
         // Make sure any saved reminders have a pending alarm (cheap, and safe to repeat).
@@ -58,6 +62,20 @@ class MainActivity : ComponentActivity() {
         val dao = database.timesheetDao()
 
         setContent {
+            // The top bars are always solid blue, so status bar icons stay light; the bottom
+            // navigation bar follows the light/dark theme.
+            val dark = isAppDark()
+            LaunchedEffect(dark) {
+                enableEdgeToEdge(
+                    statusBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
+                    navigationBarStyle = if (dark) {
+                        SystemBarStyle.dark(android.graphics.Color.TRANSPARENT)
+                    } else {
+                        SystemBarStyle.light(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT)
+                    }
+                )
+            }
+
             TimesheetTheme {
                 val viewModel: TimesheetViewModel = viewModel(
                     factory = TimesheetViewModelFactory(dao)

@@ -21,6 +21,8 @@ import com.example.timesheet.ui.WeekSummary
 import com.example.timesheet.ui.buildWeekText
 import com.example.timesheet.ui.copyToClipboard
 import com.example.timesheet.ui.formatHours
+import com.example.timesheet.ui.theme.bar
+import com.example.timesheet.ui.theme.onBar
 
 private val tabs = listOf("Weeks", "Months", "Years")
 
@@ -42,7 +44,15 @@ fun HistoryScreen(
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
 
     Scaffold(
-        topBar = { TopAppBar(title = { Text("History", fontWeight = FontWeight.Bold) }) },
+        topBar = {
+            TopAppBar(
+                title = { Text("History", fontWeight = FontWeight.Black) },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.bar,
+                    titleContentColor = MaterialTheme.colorScheme.onBar
+                )
+            )
+        },
         modifier = modifier
     ) { innerPadding ->
         Box(
@@ -57,16 +67,16 @@ fun HistoryScreen(
                     .widthIn(max = 600.dp)
                     .padding(horizontal = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
-                contentPadding = PaddingValues(bottom = 16.dp)
+                contentPadding = PaddingValues(top = 16.dp, bottom = 16.dp)
             ) {
                 item {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        StatsCard("This Week", formatHours(weekHours), Modifier.weight(1f))
-                        StatsCard("This Month", formatHours(monthHours), Modifier.weight(1f))
-                        StatsCard("This Year", formatHours(ytdHours), Modifier.weight(1f))
+                        StatsCard("Week", formatHours(weekHours), Modifier.weight(1f))
+                        StatsCard("Month", formatHours(monthHours), Modifier.weight(1f))
+                        StatsCard("Year", formatHours(ytdHours), Modifier.weight(1f))
                     }
                 }
 
@@ -145,7 +155,7 @@ fun StatsCard(
             Text(text = label, style = MaterialTheme.typography.labelMedium)
             Text(
                 text = value,
-                style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold, fontSize = 26.sp)
+                style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Black)
             )
             Text(text = "hours", style = MaterialTheme.typography.labelSmall)
         }

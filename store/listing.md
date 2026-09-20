@@ -20,6 +20,7 @@ WHAT YOU GET
 - The whole week on one screen, with a running total
 - Jobsite suggestions from places you have typed before
 - Travel and parking notes for each day
+- Big, high-contrast text you can read without your glasses, with three text sizes and light, dark or auto mode
 - Optional daily and weekly reminders, so you never forget to log or send your hours (the daily one stays quiet if you already logged)
 - Go back and fix any past week
 - History with week, month and year totals

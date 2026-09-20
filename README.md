@@ -31,6 +31,7 @@ Sat
 * **Browse any week:** use the arrows at the top to go back and fix a past week, or jump back to this week.
 * **History:** week, month, and year totals, plus a copy button on every past week. Tap a week to open it.
 * **Reminders (optional):** a daily nudge to log your hours (skipped if you already did) and a weekly "send your hours" reminder that shows your total so far. Set the times in Settings. Off until you turn them on.
+* **Easy to read:** big, high-contrast text and buttons, no squinting. Pick Standard, Large or Biggest text in Settings, and Light, Dark or Auto mode.
 * **Your pay week:** choose whether the week starts on Sunday, Monday or Saturday in Settings. Sunday is the default.
 * **Clear week:** wipes the week you're looking at (it asks first).
 * **100% offline:** everything is stored on your phone. No internet permission at all.

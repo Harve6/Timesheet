@@ -24,6 +24,11 @@ import com.example.timesheet.reminders.ReminderSettings
 import com.example.timesheet.reminders.ReminderStore
 import com.example.timesheet.ui.TimesheetViewModel
 import com.example.timesheet.ui.WeekSettings
+import com.example.timesheet.ui.theme.AppearanceSettings
+import com.example.timesheet.ui.theme.TextSize
+import com.example.timesheet.ui.theme.ThemeMode
+import com.example.timesheet.ui.theme.bar
+import com.example.timesheet.ui.theme.onBar
 import java.text.DateFormatSymbols
 import java.util.Calendar
 import java.util.Locale
@@ -89,7 +94,15 @@ fun SettingsScreen(viewModel: TimesheetViewModel, modifier: Modifier = Modifier)
 
     Scaffold(
         modifier = modifier,
-        topBar = { TopAppBar(title = { Text("Settings", fontWeight = FontWeight.Bold) }) }
+        topBar = {
+            TopAppBar(
+                title = { Text("Settings", fontWeight = FontWeight.Black) },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.bar,
+                    titleContentColor = MaterialTheme.colorScheme.onBar
+                )
+            )
+        }
     ) { padding ->
         Box(
             modifier = Modifier
@@ -105,6 +118,46 @@ fun SettingsScreen(viewModel: TimesheetViewModel, modifier: Modifier = Modifier)
                     .padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
+                Text("Look", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+
+                Card {
+                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Text("Text size", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                            TextSize.entries.forEachIndexed { index, size ->
+                                SegmentedButton(
+                                    selected = AppearanceSettings.textSize == size,
+                                    onClick = { AppearanceSettings.setTextSize(context, size) },
+                                    shape = SegmentedButtonDefaults.itemShape(index, TextSize.entries.size)
+                                ) { Text(size.label, maxLines = 1) }
+                            }
+                        }
+                        Text(
+                            "Choose the size that's easiest to read. The whole app changes right away.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+
+                        Text("Light or dark", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                            ThemeMode.entries.forEachIndexed { index, mode ->
+                                SegmentedButton(
+                                    selected = AppearanceSettings.themeMode == mode,
+                                    onClick = { AppearanceSettings.setThemeMode(context, mode) },
+                                    shape = SegmentedButtonDefaults.itemShape(index, ThemeMode.entries.size)
+                                ) { Text(mode.label, maxLines = 1) }
+                            }
+                        }
+                        Text(
+                            "Auto follows your phone's setting.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
                 Text("Pay week", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
 
                 Card {

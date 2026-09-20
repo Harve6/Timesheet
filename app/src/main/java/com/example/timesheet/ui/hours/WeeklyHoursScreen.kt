@@ -1,6 +1,9 @@
 package com.example.timesheet.ui.hours
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
@@ -9,7 +12,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.rounded.ContentCopy
-import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -17,7 +19,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
@@ -34,6 +41,8 @@ import com.example.timesheet.ui.copyToClipboard
 import com.example.timesheet.ui.formatHours
 import com.example.timesheet.ui.formatMoney
 import com.example.timesheet.ui.localNoon
+import com.example.timesheet.ui.theme.bar
+import com.example.timesheet.ui.theme.onBar
 import com.example.timesheet.ui.weekStartOf
 import kotlinx.coroutines.flow.drop
 import java.text.SimpleDateFormat
@@ -84,6 +93,8 @@ fun WeeklyHoursScreen(
     }
 
     val rows = days
+    // At the biggest text sizes there is no room to put the site beside the hours, so it drops underneath.
+    val stacked = LocalDensity.current.fontScale > 1.3f
     val totalHours = rows?.sumOf { it.hours.toDoubleOrNull() ?: 0.0 } ?: 0.0
     val isThisWeek = weekStart == weekStartOf(System.currentTimeMillis())
     val rangeFmt = remember { SimpleDateFormat("MMM d", Locale.getDefault()) }
@@ -100,34 +111,34 @@ fun WeeklyHoursScreen(
                         Text(
                             "${rangeFmt.format(Date(weekStart))} - ${rangeFmt.format(Date(addDays(weekStart, 6)))}",
                             fontWeight = FontWeight.Black,
-                            fontSize = 18.sp
+                            style = MaterialTheme.typography.titleLarge
                         )
                         if (isThisWeek) {
-                            Text("THIS WEEK", style = MaterialTheme.typography.labelSmall, letterSpacing = 1.sp)
+                            Text("THIS WEEK", style = MaterialTheme.typography.labelLarge, letterSpacing = 1.sp)
                         } else {
                             Text(
                                 "Back to this week",
-                                style = MaterialTheme.typography.labelSmall,
+                                style = MaterialTheme.typography.labelLarge,
                                 modifier = Modifier.clickableNoRipple { viewModel.goToThisWeek() }
                             )
                         }
                     }
                 },
                 navigationIcon = {
-                    IconButton(onClick = { viewModel.shiftWeek(-1) }) {
-                        Icon(Icons.AutoMirrored.Rounded.KeyboardArrowLeft, contentDescription = "Previous week", modifier = Modifier.size(32.dp))
+                    IconButton(onClick = { viewModel.shiftWeek(-1) }, modifier = Modifier.size(56.dp)) {
+                        Icon(Icons.AutoMirrored.Rounded.KeyboardArrowLeft, contentDescription = "Previous week", modifier = Modifier.size(44.dp))
                     }
                 },
                 actions = {
-                    IconButton(onClick = { viewModel.shiftWeek(1) }) {
-                        Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, contentDescription = "Next week", modifier = Modifier.size(32.dp))
+                    IconButton(onClick = { viewModel.shiftWeek(1) }, modifier = Modifier.size(56.dp)) {
+                        Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, contentDescription = "Next week", modifier = Modifier.size(44.dp))
                     }
                 },
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimary,
-                    navigationIconContentColor = MaterialTheme.colorScheme.onPrimary,
-                    actionIconContentColor = MaterialTheme.colorScheme.onPrimary
+                    containerColor = MaterialTheme.colorScheme.bar,
+                    titleContentColor = MaterialTheme.colorScheme.onBar,
+                    navigationIconContentColor = MaterialTheme.colorScheme.onBar,
+                    actionIconContentColor = MaterialTheme.colorScheme.onBar
                 )
             )
         },
@@ -144,25 +155,28 @@ fun WeeklyHoursScreen(
                     OutlinedButton(
                         modifier = Modifier
                             .weight(1f)
-                            .height(56.dp),
+                            .heightIn(min = 64.dp),
                         enabled = rows != null,
                         onClick = { showClearConfirm = true },
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                        border = BorderStroke(2.dp, MaterialTheme.colorScheme.error)
                     ) {
-                        Icon(Icons.Rounded.Delete, contentDescription = null, modifier = Modifier.size(20.dp))
-                        Spacer(Modifier.width(8.dp))
-                        Text("CLEAR", fontWeight = FontWeight.Bold)
+                        Text("CLEAR", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
                     }
                     Button(
                         modifier = Modifier
-                            .weight(2f)
-                            .height(56.dp),
+                            .weight(1.4f)
+                            .heightIn(min = 64.dp),
                         enabled = rows != null,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.bar,
+                            contentColor = MaterialTheme.colorScheme.onBar
+                        ),
                         onClick = { rows?.let { copyToClipboard(context, weekText(weekStart, it)) } }
                     ) {
-                        Icon(Icons.Rounded.ContentCopy, contentDescription = null, modifier = Modifier.size(20.dp))
+                        Icon(Icons.Rounded.ContentCopy, contentDescription = null, modifier = Modifier.size(28.dp))
                         Spacer(Modifier.width(8.dp))
-                        Text("COPY", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                        Text("COPY", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black)
                     }
                 }
             }
@@ -173,8 +187,8 @@ fun WeeklyHoursScreen(
                 .fillMaxSize()
                 .padding(padding)
                 .imePadding()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+                .padding(horizontal = 10.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -183,12 +197,12 @@ fun WeeklyHoursScreen(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(16.dp),
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Text("TOTAL HOURS", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelLarge)
-                    Text(formatHours(totalHours), fontWeight = FontWeight.Black, fontSize = 28.sp)
+                    Text("TOTAL HOURS", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                    Text(formatHours(totalHours), fontWeight = FontWeight.Black, style = MaterialTheme.typography.headlineLarge)
                 }
             }
 
@@ -200,20 +214,23 @@ fun WeeklyHoursScreen(
                         modifier = Modifier
                             .fillMaxSize()
                             .verticalScroll(rememberScrollState())
-                            .padding(12.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                            .padding(horizontal = 8.dp, vertical = 8.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Text("DAY", modifier = Modifier.width(52.dp), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
-                            Text("HRS", modifier = Modifier.width(76.dp), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
-                            Text("JOBSITE", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                        if (!stacked) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Text("DAY", modifier = Modifier.width(DAY_WIDTH), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
+                                Text("HRS", modifier = Modifier.width(HOURS_WIDTH), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
+                                Text("JOBSITE", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                            }
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outline)
                         }
-                        HorizontalDivider()
                         rows.forEach { day ->
                             DayRow(
+                                stacked = stacked,
                                 day = day,
                                 isToday = day.date == localNoon(System.currentTimeMillis()),
                                 suggestions = savedLocations.map { it.siteName }.distinct(),
@@ -270,8 +287,77 @@ fun WeeklyHoursScreen(
     }
 }
 
+private val DAY_WIDTH = 60.dp
+private val HOURS_WIDTH = 74.dp
+
+@Composable
+private fun fieldColors() = OutlinedTextFieldDefaults.colors(
+    focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
+    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
+    unfocusedBorderColor = MaterialTheme.colorScheme.outline,
+    focusedBorderColor = MaterialTheme.colorScheme.primary,
+    unfocusedPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant,
+    focusedPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant
+)
+
+/** Outlined text box with tight, adjustable side padding so every pixel goes to the text. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun GridField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    modifier: Modifier,
+    textStyle: TextStyle,
+    keyboardOptions: KeyboardOptions,
+    placeholder: (@Composable () -> Unit)?,
+    singleLine: Boolean,
+    maxLines: Int,
+    horizontalPadding: Dp
+) {
+    val interaction = remember { MutableInteractionSource() }
+    val colors = fieldColors()
+    BasicTextField(
+        value = value,
+        onValueChange = onValueChange,
+        modifier = modifier,
+        textStyle = textStyle.copy(color = MaterialTheme.colorScheme.onSurface),
+        keyboardOptions = keyboardOptions,
+        singleLine = singleLine,
+        maxLines = maxLines,
+        interactionSource = interaction,
+        cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+        decorationBox = { inner ->
+            OutlinedTextFieldDefaults.DecorationBox(
+                value = value,
+                innerTextField = inner,
+                enabled = true,
+                singleLine = singleLine,
+                visualTransformation = VisualTransformation.None,
+                interactionSource = interaction,
+                placeholder = placeholder,
+                colors = colors,
+                contentPadding = OutlinedTextFieldDefaults.contentPadding(
+                    start = horizontalPadding,
+                    end = horizontalPadding,
+                    top = 14.dp,
+                    bottom = 14.dp
+                ),
+                container = {
+                    OutlinedTextFieldDefaults.Container(
+                        enabled = true,
+                        isError = false,
+                        interactionSource = interaction,
+                        colors = colors
+                    )
+                }
+            )
+        }
+    )
+}
+
 @Composable
 private fun DayRow(
+    stacked: Boolean,
     day: DayState,
     isToday: Boolean,
     suggestions: List<String>,
@@ -289,46 +375,79 @@ private fun DayRow(
     val dayFmt = remember { SimpleDateFormat("EEE", Locale.getDefault()) }
     val dateFmt = remember { SimpleDateFormat("M/d", Locale.getDefault()) }
 
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
+    val dayChip: @Composable () -> Unit = {
         Surface(
             onClick = onOptions,
             color = when {
                 day.hasExtras() -> MaterialTheme.colorScheme.tertiaryContainer
-                isToday -> MaterialTheme.colorScheme.primaryContainer
+                isToday -> MaterialTheme.colorScheme.bar
                 else -> MaterialTheme.colorScheme.surfaceVariant
             },
+            contentColor = when {
+                day.hasExtras() -> MaterialTheme.colorScheme.onTertiaryContainer
+                isToday -> MaterialTheme.colorScheme.onBar
+                else -> MaterialTheme.colorScheme.onSurface
+            },
             shape = MaterialTheme.shapes.small,
-            modifier = Modifier.width(52.dp)
+            modifier = if (stacked) Modifier.widthIn(min = DAY_WIDTH) else Modifier.width(DAY_WIDTH)
         ) {
             Column(
-                modifier = Modifier.padding(vertical = 8.dp),
+                modifier = Modifier.padding(vertical = 8.dp, horizontal = 4.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Text(dayFmt.format(Date(day.date)), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyLarge)
-                Text(dateFmt.format(Date(day.date)), style = MaterialTheme.typography.labelSmall)
+                Text(dayFmt.format(Date(day.date)), fontWeight = FontWeight.Black, style = MaterialTheme.typography.titleMedium)
+                Text(dateFmt.format(Date(day.date)), style = MaterialTheme.typography.bodySmall)
             }
         }
+    }
 
-        OutlinedTextField(
-            modifier = Modifier.width(76.dp),
+    val hoursField: @Composable (Modifier) -> Unit = { mod ->
+        GridField(
             value = day.hours,
             onValueChange = { day.hours = filterDecimal(it) },
+            modifier = mod,
+            textStyle = MaterialTheme.typography.titleMedium.copy(textAlign = TextAlign.Center, fontWeight = FontWeight.Black),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Next),
+            // No column header in the stacked layout, so say what the box is for.
+            placeholder = if (stacked) {
+                { Text("Hours", modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center, style = MaterialTheme.typography.titleMedium) }
+            } else null,
             singleLine = true,
-            textStyle = MaterialTheme.typography.titleMedium.copy(textAlign = TextAlign.Center, fontWeight = FontWeight.Bold),
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Next)
+            maxLines = 1,
+            horizontalPadding = 4.dp
         )
+    }
 
-        Column(modifier = Modifier.weight(1f)) {
+    val extras: @Composable () -> Unit = {
+        if (day.hasExtras()) {
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                if (day.travel) Text("+Travel", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.tertiary)
+                if (day.parking.isNotEmpty()) Text("+Park $${day.parking}", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.tertiary)
+            }
+        }
+    }
+
+    if (stacked) {
+        Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                dayChip()
+                hoursField(Modifier.weight(1f))
+            }
             SiteField(value = day.site, onValueChange = { day.site = it }, suggestions = suggestions)
-            if (day.hasExtras()) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    if (day.travel) Text("+Travel", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
-                    if (day.parking.isNotEmpty()) Text("+Park $${day.parking}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.secondary)
-                }
+            extras()
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant, modifier = Modifier.padding(top = 6.dp))
+        }
+    } else {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            dayChip()
+            hoursField(Modifier.width(HOURS_WIDTH))
+            Column(modifier = Modifier.weight(1f)) {
+                SiteField(value = day.site, onValueChange = { day.site = it }, suggestions = suggestions)
+                extras()
             }
         }
     }
@@ -342,17 +461,20 @@ private fun SiteField(value: String, onValueChange: (String) -> Unit, suggestion
         else suggestions.filter { it.contains(value, ignoreCase = true) && !it.equals(value, ignoreCase = true) }.take(5)
     }
     Box {
-        OutlinedTextField(
-            modifier = Modifier.fillMaxWidth(),
+        GridField(
             value = value,
             onValueChange = {
-                onValueChange(it)
+                onValueChange(it.replace('\n', ' '))
                 expanded = true
             },
-            singleLine = true,
-            placeholder = { Text("Site", fontSize = 14.sp) },
-            textStyle = MaterialTheme.typography.bodyLarge,
-            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done)
+            modifier = Modifier.fillMaxWidth(),
+            textStyle = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Medium),
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+            placeholder = { Text("Site", style = MaterialTheme.typography.bodyLarge) },
+            // Long names wrap onto a second line rather than scrolling the start out of view.
+            singleLine = false,
+            maxLines = 2,
+            horizontalPadding = 10.dp
         )
         DropdownMenu(
             expanded = expanded && matches.isNotEmpty(),
@@ -361,7 +483,7 @@ private fun SiteField(value: String, onValueChange: (String) -> Unit, suggestion
         ) {
             matches.forEach { name ->
                 DropdownMenuItem(
-                    text = { Text(name) },
+                    text = { Text(name, style = MaterialTheme.typography.bodyLarge) },
                     onClick = {
                         onValueChange(name)
                         expanded = false
