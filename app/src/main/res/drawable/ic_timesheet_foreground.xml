@@ -4,24 +4,24 @@
     android:viewportWidth="108"
     android:viewportHeight="108">
 
-    <!-- Clock Ring (White) -->
+    <!-- Bold clock ring -->
     <path
-        android:strokeColor="#FFFFFF"
-        android:strokeWidth="4"
-        android:strokeLineCap="round"
-        android:pathData="M54,54m-22,0a22,22 0,1 1,44 0a22,22 0,1 1,-44 0" />
+        android:strokeColor="#1A1A1A"
+        android:strokeWidth="9"
+        android:pathData="M54,54m-25,0a25,25 0,1 1,50 0a25,25 0,1 1,-50 0" />
 
-    <!-- Clock Hands (White) -->
+    <!-- 12 / 3 / 6 / 9 ticks -->
     <path
-        android:strokeColor="#FFFFFF"
-        android:strokeWidth="4"
+        android:strokeColor="#1A1A1A"
+        android:strokeWidth="5"
+        android:strokeLineCap="butt"
+        android:pathData="M54,33v5M54,70v5M33,54h5M70,54h5" />
+
+    <!-- Hands: hour + minute -->
+    <path
+        android:strokeColor="#1A1A1A"
+        android:strokeWidth="8"
         android:strokeLineCap="round"
         android:strokeLineJoin="round"
-        android:pathData="M54,38v16l10,6" />
-
-    <!-- Stylized Checkmark (Vibrant Orange) -->
-    <!-- Positioned to accent the clock, slightly overlapping for a modern layered look -->
-    <path
-        android:fillColor="#FF9800"
-        android:pathData="M82,58l-14,14l-7,-7l-3,3l10,10l17,-17z" />
+        android:pathData="M54,54V40M54,54l10,7" />
 </vector>
