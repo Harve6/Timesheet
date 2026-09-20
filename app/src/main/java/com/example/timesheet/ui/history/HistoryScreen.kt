@@ -3,18 +3,26 @@ package com.example.timesheet.ui.history
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.timesheet.ui.PeriodTotal
 import com.example.timesheet.ui.TimesheetViewModel
 import com.example.timesheet.ui.WeekSummary
+import com.example.timesheet.ui.buildWeekText
+import com.example.timesheet.ui.copyToClipboard
+import com.example.timesheet.ui.formatHours
+
+private val tabs = listOf("Weeks", "Months", "Years")
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -22,16 +30,18 @@ fun HistoryScreen(
     viewModel: TimesheetViewModel,
     modifier: Modifier = Modifier
 ) {
+    val weekEntries by viewModel.currentWeekEntries.collectAsStateWithLifecycle()
     val monthHours by viewModel.totalHoursThisMonth.collectAsStateWithLifecycle()
     val ytdHours by viewModel.totalHoursThisYear.collectAsStateWithLifecycle()
     val pastWeeks by viewModel.pastWeeksSummary.collectAsStateWithLifecycle()
+    val months by viewModel.monthTotals.collectAsStateWithLifecycle()
+    val years by viewModel.yearTotals.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+
+    var selectedTab by rememberSaveable { mutableIntStateOf(0) }
 
     Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("History & Stats") }
-            )
-        },
+        topBar = { TopAppBar(title = { Text("History", fontWeight = FontWeight.Bold) }) },
         modifier = modifier
     ) { innerPadding ->
         Box(
@@ -45,65 +55,69 @@ fun HistoryScreen(
                     .fillMaxWidth()
                     .widthIn(max = 600.dp)
                     .padding(horizontal = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
                 contentPadding = PaddingValues(bottom = 16.dp)
             ) {
                 item {
-                    Text(
-                        text = "At a Glance",
-                        style = MaterialTheme.typography.titleLarge,
-                        modifier = Modifier.padding(vertical = 8.dp)
-                    )
-                }
-
-                item {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(16.dp)
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        StatsCard(
-                            label = "This Month",
-                            value = "%.1f".format(monthHours),
-                            modifier = Modifier.weight(1f)
-                        )
-                        StatsCard(
-                            label = "YTD",
-                            value = "%.1f".format(ytdHours),
-                            modifier = Modifier.weight(1f)
-                        )
+                        StatsCard("This Week", formatHours(weekEntries.sumOf { it.hoursWorked }), Modifier.weight(1f))
+                        StatsCard("This Month", formatHours(monthHours), Modifier.weight(1f))
+                        StatsCard("This Year", formatHours(ytdHours), Modifier.weight(1f))
                     }
                 }
 
                 item {
-                    Text(
-                        text = "Past Weeks",
-                        style = MaterialTheme.typography.titleLarge,
-                        modifier = Modifier.padding(top = 16.dp, bottom = 8.dp)
-                    )
+                    SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                        tabs.forEachIndexed { index, label ->
+                            SegmentedButton(
+                                selected = selectedTab == index,
+                                onClick = { selectedTab = index },
+                                shape = SegmentedButtonDefaults.itemShape(index, tabs.size)
+                            ) { Text(label) }
+                        }
+                    }
                 }
 
-                if (pastWeeks.isEmpty()) {
-                    item {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 32.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = "No history available",
-                                style = MaterialTheme.typography.bodyLarge,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                when (selectedTab) {
+                    0 -> {
+                        if (pastWeeks.isEmpty()) item { EmptyHistory() }
+                        items(pastWeeks, key = { it.startDate }) { week ->
+                            WeekSummaryItem(
+                                week = week,
+                                onCopy = { copyToClipboard(context, buildWeekText(week.startDate, week.entries)) }
                             )
                         }
                     }
-                } else {
-                    items(pastWeeks) { week ->
-                        WeekSummaryItem(week = week)
+                    1 -> {
+                        if (months.isEmpty()) item { EmptyHistory() }
+                        items(months, key = { it.label }) { PeriodRow(it) }
+                    }
+                    else -> {
+                        if (years.isEmpty()) item { EmptyHistory() }
+                        items(years, key = { it.label }) { PeriodRow(it) }
                     }
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun EmptyHistory() {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 32.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = "Nothing here yet",
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
     }
 }
 
@@ -121,24 +135,17 @@ fun StatsCard(
         )
     ) {
         Column(
-            modifier = Modifier.padding(16.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelMedium
-            )
+            Text(text = label, style = MaterialTheme.typography.labelMedium)
             Text(
                 text = value,
-                style = MaterialTheme.typography.headlineMedium.copy(
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 28.sp
-                )
+                style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold, fontSize = 26.sp)
             )
-            Text(
-                text = "hours",
-                style = MaterialTheme.typography.labelSmall
-            )
+            Text(text = "hours", style = MaterialTheme.typography.labelSmall)
         }
     }
 }
@@ -146,6 +153,7 @@ fun StatsCard(
 @Composable
 fun WeekSummaryItem(
     week: WeekSummary,
+    onCopy: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Card(
@@ -154,35 +162,42 @@ fun WeekSummaryItem(
     ) {
         Row(
             modifier = Modifier
-                .padding(16.dp)
-                .fillMaxWidth(),
+                .fillMaxWidth()
+                .padding(start = 16.dp, top = 4.dp, bottom = 4.dp, end = 4.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                text = week.weekRangeText,
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = FontWeight.Medium
-            )
-            Text(
-                text = "%.1f h".format(week.totalHours),
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.primary
-            )
+            Column(modifier = Modifier.weight(1f)) {
+                Text(week.weekRangeText, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
+                Text(
+                    "${formatHours(week.totalHours)} h",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+            IconButton(onClick = onCopy) {
+                Icon(Icons.Rounded.ContentCopy, contentDescription = "Copy this week")
+            }
         }
     }
 }
 
-@androidx.compose.ui.tooling.preview.Preview(showBackground = true)
 @Composable
-fun WeekSummaryItemPreview() {
-    MaterialTheme {
-        WeekSummaryItem(
-            week = WeekSummary(
-                weekRangeText = "Aug 24 - Aug 30",
-                totalHours = 40.5,
-                startDate = 0L
+private fun PeriodRow(period: PeriodTotal) {
+    Card(modifier = Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(period.label, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
+            Text(
+                "${formatHours(period.totalHours)} h",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.primary
             )
-        )
+        }
     }
 }

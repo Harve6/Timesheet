@@ -1,5 +1,7 @@
 package com.example.timesheet.ui.entry
 
+import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
@@ -14,14 +16,16 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.timesheet.data.SavedLocation
 import com.example.timesheet.data.SiteTimeEntry
 import com.example.timesheet.ui.TimesheetViewModel
-import com.example.timesheet.ui.theme.TimesheetTheme
+import com.example.timesheet.ui.formatHours
+import com.example.timesheet.ui.localNoon
+import com.example.timesheet.ui.localToPickerUtc
+import com.example.timesheet.ui.pickerUtcToLocalNoon
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -32,29 +36,43 @@ fun DailyEntryScreen(
     onNavigateBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    var date by rememberSaveable { mutableLongStateOf(System.currentTimeMillis()) }
-    var siteName by rememberSaveable { mutableStateOf("") }
-    var siteAddress by rememberSaveable { mutableStateOf("") }
-    var jobNumber by rememberSaveable { mutableStateOf("") }
-    var hoursWorked by rememberSaveable { mutableStateOf(8.0) }
-    var workSummary by rememberSaveable { mutableStateOf("") }
-    var travelReimbursed by rememberSaveable { mutableStateOf(false) }
-    var parkingAmountText by rememberSaveable { mutableStateOf("") }
+    val editing = remember { viewModel.editingEntry.value }
+
+    var date by rememberSaveable { mutableLongStateOf(editing?.date ?: localNoon(System.currentTimeMillis())) }
+    var siteName by rememberSaveable { mutableStateOf(editing?.siteName ?: "") }
+    var siteAddress by rememberSaveable { mutableStateOf(editing?.siteAddress ?: "") }
+    var jobNumber by rememberSaveable { mutableStateOf(editing?.jobNumber ?: "") }
+    var hoursWorked by rememberSaveable { mutableStateOf(editing?.hoursWorked ?: 8.0) }
+    var workSummary by rememberSaveable { mutableStateOf(editing?.workSummary ?: "") }
+    var travelReimbursed by rememberSaveable { mutableStateOf(editing?.travelReimbursed ?: false) }
+    var parkingAmountText by rememberSaveable {
+        mutableStateOf(editing?.parkingAmount?.takeIf { it > 0 }?.let { formatHours(it) } ?: "")
+    }
+    var showMore by rememberSaveable {
+        mutableStateOf(
+            editing != null && (editing.siteAddress.isNotBlank() || editing.jobNumber.isNotBlank() ||
+                editing.travelReimbursed || editing.parkingAmount > 0)
+        )
+    }
 
     val savedLocations by viewModel.savedLocations.collectAsStateWithLifecycle()
-    
-    var showDatePicker by remember { mutableStateOf(false) }
-    val datePickerState = rememberDatePickerState(initialSelectedDateMillis = date)
 
-    val scrollState = rememberScrollState()
+    var showDatePicker by remember { mutableStateOf(false) }
+
+    fun leave() {
+        viewModel.startEditing(null)
+        onNavigateBack()
+    }
+
+    BackHandler { leave() }
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text("Daily Entry", fontWeight = FontWeight.Bold) },
+                title = { Text(if (editing == null) "Add Hours" else "Edit Hours", fontWeight = FontWeight.Bold) },
                 navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
+                    IconButton(onClick = { leave() }) {
                         Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back")
                     }
                 },
@@ -63,6 +81,37 @@ fun DailyEntryScreen(
                     titleContentColor = MaterialTheme.colorScheme.onSurface
                 )
             )
+        },
+        bottomBar = {
+            Button(
+                onClick = {
+                    viewModel.addOrUpdateEntry(
+                        SiteTimeEntry(
+                            id = editing?.id ?: 0L,
+                            date = date,
+                            siteName = siteName.trim(),
+                            siteAddress = siteAddress.trim(),
+                            jobNumber = jobNumber.trim(),
+                            hoursWorked = hoursWorked,
+                            workSummary = workSummary.trim(),
+                            travelReimbursed = travelReimbursed,
+                            parkingAmount = parkingAmountText.toDoubleOrNull() ?: 0.0
+                        )
+                    )
+                    leave()
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .navigationBarsPadding()
+                    .padding(16.dp)
+                    .height(64.dp),
+                enabled = hoursWorked > 0,
+                shape = MaterialTheme.shapes.large
+            ) {
+                Icon(Icons.Rounded.Check, contentDescription = null)
+                Spacer(Modifier.width(8.dp))
+                Text("Save", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            }
         }
     ) { padding ->
         Box(
@@ -75,27 +124,15 @@ fun DailyEntryScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .widthIn(max = 600.dp)
-                    .verticalScroll(scrollState)
-                    .padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(20.dp)
+                    .verticalScroll(rememberScrollState())
+                    .imePadding()
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                // Date Selection
-                val dateFormatter = remember { SimpleDateFormat("EEEE, MMM d, yyyy", Locale.getDefault()) }
-                OutlinedTextField(
-                    value = dateFormatter.format(Date(date)),
-                    onValueChange = {},
-                    label = { Text("Date") },
-                    readOnly = true,
-                    modifier = Modifier.fillMaxWidth(),
-                    trailingIcon = {
-                        IconButton(onClick = { showDatePicker = true }) {
-                            Icon(Icons.Rounded.CalendarToday, contentDescription = "Select Date")
-                        }
-                    },
-                    shape = MaterialTheme.shapes.medium
-                )
+                DateRow(date = date, onDateChange = { date = it }, onPickDate = { showDatePicker = true })
 
-                // Site Autocomplete
+                HourSelector(hours = hoursWorked, onHoursChange = { hoursWorked = it })
+
                 SiteAutocompleteField(
                     value = siteName,
                     onValueChange = { siteName = it },
@@ -104,111 +141,85 @@ fun DailyEntryScreen(
                         siteName = location.siteName
                         siteAddress = location.siteAddress
                     },
-                    label = "Site Name"
+                    label = "Where? (site or job name)"
                 )
-
-                OutlinedTextField(
-                    value = siteAddress,
-                    onValueChange = { siteAddress = it },
-                    label = { Text("Site Address (Optional)") },
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = MaterialTheme.shapes.medium
-                )
-
-                // Hour Selector
-                HourSelector(
-                    hours = hoursWorked,
-                    onHoursChange = { hoursWorked = it }
-                )
-
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    OutlinedTextField(
-                        value = jobNumber,
-                        onValueChange = { jobNumber = it },
-                        label = { Text("Job Number") },
-                        modifier = Modifier.weight(1f),
-                        shape = MaterialTheme.shapes.medium
-                    )
-
-                    OutlinedTextField(
-                        value = parkingAmountText,
-                        onValueChange = { 
-                            if (it.isEmpty() || it.toDoubleOrNull() != null) {
-                                parkingAmountText = it
-                            }
-                        },
-                        label = { Text("Parking $") },
-                        modifier = Modifier.weight(1f),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                        shape = MaterialTheme.shapes.medium
-                    )
-                }
 
                 OutlinedTextField(
                     value = workSummary,
                     onValueChange = { workSummary = it },
-                    label = { Text("Work Completed") },
+                    label = { Text("What did you do? (optional)") },
                     modifier = Modifier.fillMaxWidth(),
-                    minLines = 3,
+                    minLines = 2,
                     shape = MaterialTheme.shapes.medium
                 )
 
-                Surface(
-                    onClick = { travelReimbursed = !travelReimbursed },
-                    color = if (travelReimbursed) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
-                    shape = MaterialTheme.shapes.medium,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Row(
-                        modifier = Modifier.padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Column {
-                            Text("Travel Reimbursed", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold)
-                            Text("Toggle if travel was covered", style = MaterialTheme.typography.bodySmall)
+                TextButton(onClick = { showMore = !showMore }) {
+                    Text(if (showMore) "Hide extras" else "Add job #, parking, travel...")
+                    Icon(
+                        if (showMore) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
+                        contentDescription = null
+                    )
+                }
+
+                AnimatedVisibility(visible = showMore) {
+                    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                        OutlinedTextField(
+                            value = siteAddress,
+                            onValueChange = { siteAddress = it },
+                            label = { Text("Address") },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = MaterialTheme.shapes.medium
+                        )
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            OutlinedTextField(
+                                value = jobNumber,
+                                onValueChange = { jobNumber = it },
+                                label = { Text("Job #") },
+                                modifier = Modifier.weight(1f),
+                                shape = MaterialTheme.shapes.medium
+                            )
+                            OutlinedTextField(
+                                value = parkingAmountText,
+                                onValueChange = {
+                                    if (it.isEmpty() || it.toDoubleOrNull() != null) parkingAmountText = it
+                                },
+                                label = { Text("Parking $") },
+                                modifier = Modifier.weight(1f),
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                                shape = MaterialTheme.shapes.medium
+                            )
                         }
-                        Switch(checked = travelReimbursed, onCheckedChange = { travelReimbursed = it })
+                        Surface(
+                            onClick = { travelReimbursed = !travelReimbursed },
+                            color = if (travelReimbursed) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
+                            shape = MaterialTheme.shapes.medium,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text("Travel time paid", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold)
+                                Switch(checked = travelReimbursed, onCheckedChange = { travelReimbursed = it })
+                            }
+                        }
                     }
                 }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                Button(
-                    onClick = {
-                        val entry = SiteTimeEntry(
-                            date = date,
-                            siteName = siteName,
-                            siteAddress = siteAddress,
-                            jobNumber = jobNumber,
-                            hoursWorked = hoursWorked,
-                            workSummary = workSummary,
-                            travelReimbursed = travelReimbursed,
-                            parkingAmount = parkingAmountText.toDoubleOrNull() ?: 0.0
-                        )
-                        viewModel.addOrUpdateEntry(entry)
-                        onNavigateBack()
-                    },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(56.dp),
-                    enabled = siteName.isNotBlank(),
-                    shape = MaterialTheme.shapes.large
-                ) {
-                    Icon(Icons.Rounded.Save, contentDescription = null)
-                    Spacer(Modifier.width(8.dp))
-                    Text("Save Entry", fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                }
+                Spacer(Modifier.height(8.dp))
             }
         }
     }
 
     if (showDatePicker) {
+        val datePickerState = rememberDatePickerState(initialSelectedDateMillis = localToPickerUtc(date))
         DatePickerDialog(
             onDismissRequest = { showDatePicker = false },
             confirmButton = {
                 TextButton(onClick = {
-                    datePickerState.selectedDateMillis?.let { date = it }
+                    datePickerState.selectedDateMillis?.let { date = pickerUtcToLocalNoon(it) }
                     showDatePicker = false
                 }) { Text("OK") }
             },
@@ -222,6 +233,32 @@ fun DailyEntryScreen(
 }
 
 @Composable
+private fun DateRow(date: Long, onDateChange: (Long) -> Unit, onPickDate: () -> Unit) {
+    val today = remember { localNoon(System.currentTimeMillis()) }
+    val yesterday = remember {
+        Calendar.getInstance().apply { timeInMillis = today; add(Calendar.DAY_OF_YEAR, -1) }.timeInMillis
+    }
+    val fmt = remember { SimpleDateFormat("EEE, MMM d", Locale.getDefault()) }
+    val isToday = localNoon(date) == today
+    val isYesterday = localNoon(date) == yesterday
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        FilterChip(selected = isToday, onClick = { onDateChange(today) }, label = { Text("Today") })
+        FilterChip(selected = isYesterday, onClick = { onDateChange(yesterday) }, label = { Text("Yesterday") })
+        FilterChip(
+            selected = !isToday && !isYesterday,
+            onClick = onPickDate,
+            label = { Text(if (!isToday && !isYesterday) fmt.format(Date(date)) else "Other day") },
+            leadingIcon = { Icon(Icons.Rounded.CalendarToday, contentDescription = null, modifier = Modifier.size(18.dp)) }
+        )
+    }
+}
+
+@Composable
 fun SiteAutocompleteField(
     value: String,
     onValueChange: (String) -> Unit,
@@ -231,8 +268,8 @@ fun SiteAutocompleteField(
 ) {
     var expanded by remember { mutableStateOf(false) }
     val filteredSuggestions = remember(value, suggestions) {
-        if (value.isBlank()) emptyList() 
-        else suggestions.filter { it.siteName.contains(value, ignoreCase = true) }
+        if (value.isBlank()) emptyList()
+        else suggestions.filter { it.siteName.contains(value, ignoreCase = true) && !it.siteName.equals(value, ignoreCase = true) }
     }
 
     Box(modifier = Modifier.fillMaxWidth()) {
@@ -245,6 +282,7 @@ fun SiteAutocompleteField(
             label = { Text(label) },
             modifier = Modifier.fillMaxWidth(),
             shape = MaterialTheme.shapes.medium,
+            singleLine = true,
             trailingIcon = {
                 if (value.isNotEmpty()) {
                     IconButton(onClick = { onValueChange("") }) {
@@ -292,37 +330,49 @@ fun HourSelector(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
     ) {
         Column(
-            modifier = Modifier.padding(16.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Text("Hours Worked", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSecondaryContainer)
-            
+
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(24.dp)
             ) {
                 FilledIconButton(
                     onClick = { if (hours >= 0.5) onHoursChange(hours - 0.5) },
-                    modifier = Modifier.size(56.dp),
+                    modifier = Modifier.size(64.dp),
                     colors = IconButtonDefaults.filledIconButtonColors(containerColor = MaterialTheme.colorScheme.primary)
                 ) {
-                    Icon(Icons.Rounded.Remove, contentDescription = "Decrease", modifier = Modifier.size(32.dp))
+                    Icon(Icons.Rounded.Remove, contentDescription = "Decrease", modifier = Modifier.size(36.dp))
                 }
 
                 Text(
-                    text = String.format(Locale.getDefault(), "%.1f", hours),
-                    fontSize = 48.sp,
+                    text = formatHours(hours),
+                    fontSize = 56.sp,
                     fontWeight = FontWeight.Black,
                     color = MaterialTheme.colorScheme.onSecondaryContainer
                 )
 
                 FilledIconButton(
-                    onClick = { onHoursChange(hours + 0.5) },
-                    modifier = Modifier.size(56.dp),
+                    onClick = { if (hours < 24) onHoursChange(hours + 0.5) },
+                    modifier = Modifier.size(64.dp),
                     colors = IconButtonDefaults.filledIconButtonColors(containerColor = MaterialTheme.colorScheme.primary)
                 ) {
-                    Icon(Icons.Rounded.Add, contentDescription = "Increase", modifier = Modifier.size(32.dp))
+                    Icon(Icons.Rounded.Add, contentDescription = "Increase", modifier = Modifier.size(36.dp))
+                }
+            }
+
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf(4.0, 6.0, 8.0, 10.0).forEach { preset ->
+                    FilterChip(
+                        selected = hours == preset,
+                        onClick = { onHoursChange(preset) },
+                        label = { Text("${formatHours(preset)}h") }
+                    )
                 }
             }
         }

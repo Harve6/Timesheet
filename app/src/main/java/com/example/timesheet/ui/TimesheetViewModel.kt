@@ -23,8 +23,29 @@ import java.util.Locale
 data class WeekSummary(
     val weekRangeText: String,
     val totalHours: Double,
-    val startDate: Long
+    val startDate: Long,
+    val entries: List<SiteTimeEntry> = emptyList()
 )
+
+data class PeriodTotal(
+    val label: String,
+    val totalHours: Double
+)
+
+/** Start of the Monday-based week containing [millis]. */
+fun weekStartOf(millis: Long): Long {
+    val cal = Calendar.getInstance().apply {
+        timeInMillis = millis
+        firstDayOfWeek = Calendar.MONDAY
+        set(Calendar.HOUR_OF_DAY, 0)
+        set(Calendar.MINUTE, 0)
+        set(Calendar.SECOND, 0)
+        set(Calendar.MILLISECOND, 0)
+    }
+    val daysSinceMonday = (cal.get(Calendar.DAY_OF_WEEK) + 5) % 7
+    cal.add(Calendar.DAY_OF_YEAR, -daysSinceMonday)
+    return cal.timeInMillis
+}
 
 class TimesheetViewModel(
     private val dao: TimesheetDao,
@@ -66,37 +87,45 @@ class TimesheetViewModel(
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
 
     val pastWeeksSummary: StateFlow<List<WeekSummary>> = allEntries.map { entries ->
-        if (entries.isEmpty()) return@map emptyList()
-
         val sdf = SimpleDateFormat("MMM d", Locale.getDefault())
-        val groupedByWeek = entries.groupBy { entry ->
-            val cal = Calendar.getInstance()
-            cal.timeInMillis = entry.date
-            cal.set(Calendar.HOUR_OF_DAY, 0)
-            cal.set(Calendar.MINUTE, 0)
-            cal.set(Calendar.SECOND, 0)
-            cal.set(Calendar.MILLISECOND, 0)
-            cal.set(Calendar.DAY_OF_WEEK, Calendar.MONDAY)
-            if (Calendar.getInstance().apply { timeInMillis = entry.date }.get(Calendar.DAY_OF_WEEK) == Calendar.SUNDAY) {
-                cal.add(Calendar.WEEK_OF_YEAR, -1)
-            }
-            cal.timeInMillis
-        }
-
-        groupedByWeek.map { (startMillis, weekEntries) ->
-            val startCal = Calendar.getInstance().apply { timeInMillis = startMillis }
-            val endCal = Calendar.getInstance().apply {
-                timeInMillis = startMillis
-                add(Calendar.DAY_OF_WEEK, 6)
-            }
-            val rangeText = "${sdf.format(Date(startCal.timeInMillis))} - ${sdf.format(Date(endCal.timeInMillis))}"
+        entries.groupBy { weekStartOf(it.date) }.map { (start, weekEntries) ->
+            val end = Calendar.getInstance().apply {
+                timeInMillis = start
+                add(Calendar.DAY_OF_YEAR, 6)
+            }.timeInMillis
             WeekSummary(
-                weekRangeText = rangeText,
+                weekRangeText = "${sdf.format(Date(start))} - ${sdf.format(Date(end))}",
                 totalHours = weekEntries.sumOf { it.hoursWorked },
-                startDate = startMillis
+                startDate = start,
+                entries = weekEntries
             )
         }.sortedByDescending { it.startDate }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val monthTotals: StateFlow<List<PeriodTotal>> = allEntries.map { entries ->
+        val fmt = SimpleDateFormat("MMMM yyyy", Locale.getDefault())
+        entries.groupBy { e ->
+            Calendar.getInstance().apply { timeInMillis = e.date }.let { it.get(Calendar.YEAR) * 12 + it.get(Calendar.MONTH) }
+        }.toSortedMap(compareByDescending { it }).values.map { list ->
+            PeriodTotal(fmt.format(Date(list.first().date)), list.sumOf { it.hoursWorked })
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val yearTotals: StateFlow<List<PeriodTotal>> = allEntries.map { entries ->
+        entries.groupBy { Calendar.getInstance().apply { timeInMillis = it.date }.get(Calendar.YEAR) }
+            .toSortedMap(compareByDescending { it })
+            .map { (year, list) -> PeriodTotal(year.toString(), list.sumOf { it.hoursWorked }) }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    /** Entry being edited on the entry screen, or null when adding a new one. */
+    private val _editingEntry = MutableStateFlow<SiteTimeEntry?>(null)
+    val editingEntry: StateFlow<SiteTimeEntry?> = _editingEntry
+
+    fun startEditing(entry: SiteTimeEntry?) {
+        _editingEntry.value = entry
+    }
+
+    val currentWeekStart: Long get() = _weekRange.value.first
 
     fun addOrUpdateEntry(entry: SiteTimeEntry) {
         viewModelScope.launch(Dispatchers.IO) {
@@ -137,27 +166,14 @@ class TimesheetViewModel(
     }
 
     private fun getCurrentWeekRange(): Pair<Long, Long> {
-        val calendar = Calendar.getInstance()
-        calendar.set(Calendar.HOUR_OF_DAY, 0)
-        calendar.set(Calendar.MINUTE, 0)
-        calendar.set(Calendar.SECOND, 0)
-        calendar.set(Calendar.MILLISECOND, 0)
-
-        // Set to start of the week (Monday)
-        calendar.set(Calendar.DAY_OF_WEEK, Calendar.MONDAY)
-        // If current day is before Monday (Sunday), go back to previous Monday
-        if (Calendar.getInstance().get(Calendar.DAY_OF_WEEK) == Calendar.SUNDAY) {
-            calendar.add(Calendar.WEEK_OF_YEAR, -1)
-        }
-        val startDate = calendar.timeInMillis
-
-        // Set to end of the week (Sunday)
-        calendar.add(Calendar.DAY_OF_WEEK, 6)
-        calendar.set(Calendar.HOUR_OF_DAY, 23)
-        calendar.set(Calendar.MINUTE, 59)
-        calendar.set(Calendar.SECOND, 59)
-        val endDate = calendar.timeInMillis
-
-        return Pair(startDate, endDate)
+        val start = weekStartOf(System.currentTimeMillis())
+        val end = Calendar.getInstance().apply {
+            timeInMillis = start
+            add(Calendar.DAY_OF_YEAR, 6)
+            set(Calendar.HOUR_OF_DAY, 23)
+            set(Calendar.MINUTE, 59)
+            set(Calendar.SECOND, 59)
+        }.timeInMillis
+        return Pair(start, end)
     }
 }
